@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package glossary;
+
+// Сервис для работы с глоссарием терминов
+service GlossaryService {
+  // Получение списка всех терминов (более тяжелый метод - требует чтения всех записей)
+  rpc ListTerms (ListTermsRequest) returns (ListTermsResponse);
+  
+  // Получение конкретного термина по ключевому слову (легкий метод - поиск по индексу)
+  rpc GetTerm (GetTermRequest) returns (GetTermResponse);
+  
+  // Создание нового термина (средний метод - валидация + запись в БД)
+  rpc CreateTerm (CreateTermRequest) returns (CreateTermResponse);
+  
+  // Обновление существующего термина (средний метод - поиск + валидация + обновление)
+  rpc UpdateTerm (UpdateTermRequest) returns (UpdateTermResponse);
+  
+  // Удаление термина (легкий метод - поиск + удаление)
+  rpc DeleteTerm (DeleteTermRequest) returns (DeleteTermResponse);
+}
+
+// Запрос на получение списка терминов
+message ListTermsRequest {
+  // Опционально: лимит количества возвращаемых терминов
+  int32 limit = 1;
+  // Опционально: смещение для пагинации
+  int32 offset = 2;
+}
+
+// Ответ со списком терминов
+message ListTermsResponse {
+  repeated Term terms = 1;
+  int32 total = 2;
+}
+
+// Запрос на получение термина
+message GetTermRequest {
+  string keyword = 1;
+}
+
+// Ответ с термином
+message GetTermResponse {
+  Term term = 1;
+}
+
+// Запрос на создание термина
+message CreateTermRequest {
+  string keyword = 1;
+  string description = 2;
+  string source = 3; // Опционально
+}
+
+// Ответ при создании термина
+message CreateTermResponse {
+  Term term = 1;
+}
+
+// Запрос на обновление термина
+message UpdateTermRequest {
+  string keyword = 1; // Ключевое слово для поиска
+  string new_keyword = 2; // Новое ключевое слово (опционально)
+  string description = 3; // Новое описание (опционально)
+  string source = 4; // Новый источник (опционально)
+}
+
+// Ответ при обновлении термина
+message UpdateTermResponse {
+  Term term = 1;
+}
+
+// Запрос на удаление термина
+message DeleteTermRequest {
+  string keyword = 1;
+}
+
+// Ответ при удалении термина
+message DeleteTermResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Модель термина
+message Term {
+  int32 id = 1;
+  string keyword = 2;
+  string description = 3;
+  string source = 4;
+}
