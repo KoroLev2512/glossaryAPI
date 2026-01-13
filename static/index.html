@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Семантический граф глоссария</title>
+	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 20px;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			background: #f5f5f5;
+		}
+		
+		.container {
+			max-width: 1400px;
+			margin: 0 auto;
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+			padding: 20px;
+		}
+		
+		h1 {
+			margin-top: 0;
+			color: #333;
+		}
+		
+		.controls {
+			margin-bottom: 20px;
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+		
+		button {
+			padding: 8px 16px;
+			background: #007bff;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 14px;
+		}
+		
+		button:hover {
+			background: #0056b3;
+		}
+		
+		button:disabled {
+			background: #ccc;
+			cursor: not-allowed;
+		}
+		
+		.info-panel {
+			position: fixed;
+			right: 20px;
+			top: 20px;
+			width: 300px;
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+			padding: 15px;
+			max-height: 80vh;
+			overflow-y: auto;
+			display: none;
+		}
+		
+		.info-panel.active {
+			display: block;
+		}
+		
+		.info-panel h3 {
+			margin-top: 0;
+			color: #333;
+		}
+		
+		.info-panel .term-keyword {
+			font-weight: bold;
+			color: #007bff;
+			font-size: 18px;
+			margin-bottom: 10px;
+		}
+		
+		.info-panel .term-description {
+			color: #666;
+			margin-bottom: 10px;
+			line-height: 1.5;
+		}
+		
+		.info-panel .term-source {
+			color: #999;
+			font-size: 12px;
+			font-style: italic;
+		}
+		
+		.info-panel .relations {
+			margin-top: 15px;
+		}
+		
+		.info-panel .relation-item {
+			padding: 8px;
+			margin: 5px 0;
+			background: #f8f9fa;
+			border-radius: 4px;
+			border-left: 3px solid #007bff;
+		}
+		
+		.info-panel .relation-type {
+			font-weight: bold;
+			color: #007bff;
+			font-size: 12px;
+			text-transform: uppercase;
+		}
+		
+		#graph-container {
+			width: 100%;
+			height: 700px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			background: #fafafa;
+		}
+		
+		.node {
+			cursor: pointer;
+		}
+		
+		.node circle {
+			fill: #007bff;
+			stroke: #fff;
+			stroke-width: 2px;
+		}
+		
+		.node.selected circle {
+			fill: #ff6b6b;
+			stroke-width: 3px;
+		}
+		
+		.node text {
+			font-size: 12px;
+			font-family: 'Segoe UI', sans-serif;
+			pointer-events: none;
+			text-anchor: middle;
+			dy: 25px;
+			fill: #333;
+		}
+		
+		.link {
+			fill: none;
+			stroke: #999;
+			stroke-width: 2px;
+			stroke-opacity: 0.6;
+		}
+		
+		.link.selected {
+			stroke: #ff6b6b;
+			stroke-width: 3px;
+			stroke-opacity: 1;
+		}
+		
+		.loading {
+			text-align: center;
+			padding: 50px;
+			color: #666;
+		}
+		
+		.error {
+			background: #ffebee;
+			color: #c62828;
+			padding: 15px;
+			border-radius: 4px;
+			margin-bottom: 20px;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>Семантический граф глоссария</h1>
+		
+		<div class="controls">
+			<button id="refresh-btn">Обновить граф</button>
+			<button id="reset-zoom-btn">Сбросить масштаб</button>
+			<span id="stats"></span>
+		</div>
+		
+		<div id="error-message" class="error" style="display: none;"></div>
+		
+		<div id="graph-container">
+			<div class="loading">Загрузка графа...</div>
+		</div>
+	</div>
+	
+	<div id="info-panel" class="info-panel">
+		<h3>Информация о термине</h3>
+		<div id="term-info"></div>
+	</div>
+	
+	<script>
+		const API_BASE = window.location.origin;
+		let graphData = null;
+		let svg = null;
+		let simulation = null;
+		let selectedNode = null;
+		
+		// Цвета для разных типов связей
+		const relationColors = {
+			'related': '#999',
+			'synonym': '#4caf50',
+			'antonym': '#f44336',
+			'part_of': '#2196f3',
+			'example_of': '#ff9800'
+		};
+		
+		// Загрузка данных графа
+		async function loadGraph() {
+			try {
+				document.getElementById('error-message').style.display = 'none';
+				const response = await fetch(`${API_BASE}/graph/graph`);
+				if (!response.ok) {
+					throw new Error(`HTTP error! status: ${response.status}`);
+				}
+				graphData = await response.json();
+				renderGraph();
+			} catch (error) {
+				console.error('Ошибка загрузки графа:', error);
+				document.getElementById('error-message').textContent = 
+					`Ошибка загрузки данных: ${error.message}. Убедитесь, что API сервер запущен.`;
+				document.getElementById('error-message').style.display = 'block';
+			}
+		}
+		
+		// Рендеринг графа
+		function renderGraph() {
+			if (!graphData || graphData.nodes.length === 0) {
+				document.getElementById('graph-container').innerHTML = 
+					'<div class="loading">Граф пуст. Добавьте термины и связи через API.</div>';
+				document.getElementById('stats').textContent = 'Терминов: 0, Связей: 0';
+				return;
+			}
+			
+			document.getElementById('graph-container').innerHTML = '';
+			
+			const width = document.getElementById('graph-container').clientWidth;
+			const height = 700;
+			
+			svg = d3.select('#graph-container')
+				.append('svg')
+				.attr('width', width)
+				.attr('height', height);
+			
+			// Создание симуляции
+			simulation = d3.forceSimulation(graphData.nodes)
+				.force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(100))
+				.force('charge', d3.forceManyBody().strength(-300))
+				.force('center', d3.forceCenter(width / 2, height / 2))
+				.force('collision', d3.forceCollide().radius(30));
+			
+			// Рисуем связи
+			const link = svg.append('g')
+				.selectAll('line')
+				.data(graphData.edges)
+				.join('line')
+				.attr('class', 'link')
+				.attr('stroke', d => relationColors[d.relation_type] || relationColors['related'])
+				.attr('stroke-width', 2)
+				.attr('stroke-opacity', 0.6);
+			
+			// Рисуем узлы
+			const node = svg.append('g')
+				.selectAll('g')
+				.data(graphData.nodes)
+				.join('g')
+				.attr('class', 'node')
+				.call(drag(simulation));
+			
+			node.append('circle')
+				.attr('r', 15)
+				.attr('fill', '#007bff')
+				.attr('stroke', '#fff')
+				.attr('stroke-width', 2);
+			
+			node.append('text')
+				.text(d => d.keyword)
+				.attr('font-size', 12)
+				.attr('dy', 25)
+				.attr('text-anchor', 'middle');
+			
+			// Обработчики событий
+			node.on('click', function(event, d) {
+				event.stopPropagation();
+				selectNode(d);
+			});
+			
+			svg.on('click', () => {
+				deselectNode();
+			});
+			
+			// Обновление позиций при симуляции
+			simulation.on('tick', () => {
+				link
+					.attr('x1', d => d.source.x)
+					.attr('y1', d => d.source.y)
+					.attr('x2', d => d.target.x)
+					.attr('y2', d => d.target.y);
+				
+				node.attr('transform', d => `translate(${d.x},${d.y})`);
+			});
+			
+			// Обновление статистики
+			document.getElementById('stats').textContent = 
+				`Терминов: ${graphData.nodes.length}, Связей: ${graphData.edges.length}`;
+		}
+		
+		// Выбор узла
+		function selectNode(d) {
+			// Снимаем выделение с предыдущего узла
+			if (selectedNode) {
+				d3.selectAll('.node').classed('selected', false);
+				d3.selectAll('.link').classed('selected', false);
+			}
+			
+			selectedNode = d;
+			
+			// Выделяем выбранный узел
+			const nodeElement = d3.selectAll('.node').filter(n => n.id === d.id);
+			nodeElement.classed('selected', true);
+			
+			// Выделяем связанные рёбра
+			const relatedEdges = graphData.edges.filter(e => 
+				e.source.id === d.id || e.target.id === d.id
+			);
+			d3.selectAll('.link')
+				.filter(l => relatedEdges.some(re => re.id === l.id))
+				.classed('selected', true);
+			
+			// Показываем информацию
+			showTermInfo(d);
+		}
+		
+		// Снятие выделения
+		function deselectNode() {
+			selectedNode = null;
+			d3.selectAll('.node').classed('selected', false);
+			d3.selectAll('.link').classed('selected', false);
+			document.getElementById('info-panel').classList.remove('active');
+		}
+		
+		// Показ информации о термине
+		function showTermInfo(term) {
+			const panel = document.getElementById('info-panel');
+			const infoDiv = document.getElementById('term-info');
+			
+			// Находим все связи для этого термина
+			const relations = graphData.edges.filter(e => 
+				e.source === term.id || e.target === term.id
+			);
+			
+			let relationsHtml = '';
+			if (relations.length > 0) {
+				relationsHtml = '<div class="relations"><strong>Связи:</strong>';
+				relations.forEach(rel => {
+					const relatedTermId = rel.source === term.id ? rel.target : rel.source;
+					const relatedTerm = graphData.nodes.find(n => n.id === relatedTermId);
+					const direction = rel.source === term.id ? '→' : '←';
+					relationsHtml += `
+						<div class="relation-item">
+							<span class="relation-type">${rel.relation_type}</span>
+							${direction} ${relatedTerm ? relatedTerm.keyword : '?'}
+							${rel.description ? `<br><small>${rel.description}</small>` : ''}
+						</div>
+					`;
+				});
+				relationsHtml += '</div>';
+			}
+			
+			infoDiv.innerHTML = `
+				<div class="term-keyword">${term.keyword}</div>
+				<div class="term-description">${term.description}</div>
+				${term.source ? `<div class="term-source">Источник: ${term.source}</div>` : ''}
+				${relationsHtml}
+			`;
+			
+			panel.classList.add('active');
+		}
+		
+		// Функция перетаскивания
+		function drag(simulation) {
+			function dragstarted(event) {
+				if (!event.active) simulation.alphaTarget(0.3).restart();
+				event.subject.fx = event.subject.x;
+				event.subject.fy = event.subject.y;
+			}
+			
+			function dragged(event) {
+				event.subject.fx = event.x;
+				event.subject.fy = event.y;
+			}
+			
+			function dragended(event) {
+				if (!event.active) simulation.alphaTarget(0);
+				event.subject.fx = null;
+				event.subject.fy = null;
+			}
+			
+			return d3.drag()
+				.on('start', dragstarted)
+				.on('drag', dragged)
+				.on('end', dragended);
+		}
+		
+		// Сброс масштаба
+		function resetZoom() {
+			if (simulation) {
+				simulation.alpha(1).restart();
+			}
+			deselectNode();
+		}
+		
+		// Обработчики кнопок
+		document.getElementById('refresh-btn').addEventListener('click', loadGraph);
+		document.getElementById('reset-zoom-btn').addEventListener('click', resetZoom);
+		
+		// Загрузка графа при загрузке страницы
+		loadGraph();
+	</script>
+</body>
+</html>

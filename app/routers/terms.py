@@ -28,7 +28,7 @@ def create_term(data: TermCreate, session: Session = Depends(get_session)) -> Te
 	existing = session.exec(select(Term).where(Term.keyword == data.keyword)).first()
 	if existing:
 		raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Term already exists")
-	term = Term(keyword=data.keyword, description=data.description)
+	term = Term(keyword=data.keyword, description=data.description, source=data.source)
 	session.add(term)
 	session.commit()
 	session.refresh(term)
@@ -48,6 +48,8 @@ def update_term(keyword: str, data: TermUpdate, session: Session = Depends(get_s
 		term.keyword = data.keyword
 	if data.description is not None:
 		term.description = data.description
+	if data.source is not None:
+		term.source = data.source
 
 	session.add(term)
 	session.commit()

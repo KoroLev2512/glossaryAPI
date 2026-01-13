@@ -2,105 +2,335 @@
 
 Author: Yurii Korolev
 
-FastAPI-based glossary service with SQLite storage, validated by Pydantic, and containerized. Static OpenAPI docs (JSON + HTML) are generated from the built-in FastAPI OpenAPI.
+Сервис глоссария на основе FastAPI с хранением данных в SQLite, валидацией через Pydantic и контейнеризацией. Статическая документация OpenAPI (JSON + HTML) генерируется из встроенной OpenAPI схемы FastAPI.
 
-## Features
-- CRUD operations on glossary terms
-- Input validation and response schemas via Pydantic
-- SQLite persistence via SQLModel/SQLAlchemy
-- Auto-generated OpenAPI schema and static Swagger/ReDoc HTML
-- Dockerfile and Docker Compose for containerized deployment
+## Возможности
+- CRUD операции над терминами глоссария
+- Валидация входных данных и схемы ответов через Pydantic
+- Хранение данных в SQLite через SQLModel/SQLAlchemy
+- Автоматически генерируемая OpenAPI схема и статическая документация Swagger/ReDoc в формате HTML
+- Dockerfile и Docker Compose для контейнеризованного развертывания
 
-## Endpoints
-- GET `/health` — health check
-- GET `/terms/` — list all terms
-- GET `/terms/{keyword}` — get a term by keyword
-- POST `/terms/` — create a term
-- PUT `/terms/{keyword}` — update a term (keyword and/or description)
-- DELETE `/terms/{keyword}` — remove a term
+## Эндпоинты
+- GET `/health` — проверка работоспособности
+- GET `/terms/` — получение списка всех терминов
+- GET `/terms/{keyword}` — получение информации о термине по ключевому слову
+- POST `/terms/` — создание нового термина
+- PUT `/terms/{keyword}` — обновление существующего термина (ключевое слово и/или описание)
+- DELETE `/terms/{keyword}` — удаление термина
 
 <img width="1440" height="810" alt="image" src="https://github.com/user-attachments/assets/e5f1ab8d-dd58-49bf-ac93-7b93ed2c4c59" />
 
 
-Interactive docs when running the service:
+Интерактивная документация при запуске сервиса:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-## Quickstart (Makefile)
-Ensure you have `uv` installed (Python package manager) and Docker (optional for container runs).
+## Развертывание
+
+### Локальное развертывание
+
+#### Требования
+- Python 3.11 или выше
+- `uv` (современный менеджер пакетов Python) - установите через `pip install uv` или `brew install uv`
+
+#### Шаги развертывания
+
+1. **Клонирование репозитория** (если еще не сделано):
+   ```bash
+   git clone git@github.com:KoroLev2512/glossaryAPI.git
+   cd glossaryAPI
+   ```
+
+2. **Установка зависимостей**:
+   ```bash
+   make install
+   ```
+   Эта команда создаст виртуальное окружение и установит все необходимые зависимости.
+
+3. **Запуск приложения**:
+   ```bash
+   make run
+   ```
+   Сервис будет доступен по адресу: http://localhost:8000
+
+4. **Проверка работоспособности**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+   Ожидаемый ответ: `{"status": "ok"}`
+
+5. **Доступ к интерактивной документации**:
+   - Swagger UI: http://localhost:8000/docs
+   - ReDoc: http://localhost:8000/redoc
+
+#### Генерация статической документации
 
 ```bash
-# 1) Create venv and install dependencies
-make install
-
-# 2) Run the app locally (http://localhost:8000)
-make run
-
-# 3) Run tests
-make test
-
-# 4) Generate static OpenAPI docs (JSON + HTML in static_docs/)
+# Генерация OpenAPI схемы и HTML документации
 make docs
 
-# 5) Serve static docs (so JS loads without CORS/file:// issues)
+# Запуск локального сервера для просмотра статической документации
 make docs-serve
-# Open http://localhost:8001/swagger.html or http://localhost:8001/redoc.html
+# Откройте http://localhost:8001/swagger.html или http://localhost:8001/redoc.html
 ```
 
-Why serving matters: opening `file://` HTML directly blocks required JS APIs (e.g., `process`), causing errors like "Something went wrong... process is not defined". Use `make docs-serve` to host files over HTTP.
+**Важно**: Открытие HTML файлов напрямую через `file://` блокирует необходимые JS API (например, `process`), что вызывает ошибки. Используйте `make docs-serve` для просмотра документации через HTTP.
 
-## Example requests
+#### Запуск тестов
+
 ```bash
-# Create a term
+make test
+```
+
+## Примеры запросов
+```bash
+# Создание термина
 curl -X POST http://localhost:8000/terms/ \
   -H 'Content-Type: application/json' \
   -d '{"keyword": "API", "description": "Application Programming Interface"}'
 
-# List terms
+# Получение списка терминов
 curl http://localhost:8000/terms/
 
-# Get by keyword
+# Получение термина по ключевому слову
 curl http://localhost:8000/terms/API
 
-# Update term
+# Обновление термина
 curl -X PUT http://localhost:8000/terms/API \
   -H 'Content-Type: application/json' \
   -d '{"keyword": "APIv2", "description": "Updated"}'
 
-# Delete term
+# Удаление термина
 curl -X DELETE http://localhost:8000/terms/APIv2
 ```
 
-## Static documentation
-After `make docs`, open:
-- `make docs-serve` then browse to:
+## Статическая документация
+После выполнения `make docs`:
+- Запустите `make docs-serve`, затем откройте в браузере:
   - `http://localhost:8001/swagger.html` (Swagger UI)
   - `http://localhost:8001/redoc.html` (ReDoc)
-- Schema only: `static_docs/openapi.json`
+- Только схема: `static_docs/openapi.json`
 
-## Docker
-```bash
-# Build the image
-make docker-build
+### Развертывание с Docker
 
-# Run the container (exposes :8000, mounts local sqlite DB)
-make docker-run
-# or vanilla Docker
-# docker build -t glossaryapi:latest .
-# docker run --rm -p 8000:8000 -v $(pwd)/glossary.db:/app/glossary.db glossaryapi:latest
-```
+#### Требования
+- Docker установлен и запущен
+
+#### Шаги развертывания
+
+1. **Сборка Docker образа**:
+   ```bash
+   make docker-build
+   ```
+   Или напрямую через Docker:
+   ```bash
+   docker build -t glossaryapi:latest .
+   ```
+
+2. **Запуск контейнера**:
+   ```bash
+   make docker-run
+   ```
+   Или напрямую через Docker:
+   ```bash
+   docker run --rm -p 8000:8000 -v $(pwd)/glossary.db:/app/glossary.db glossaryapi:latest
+   ```
+   
+   Контейнер:
+   - Откроет порт 8000 на хосте
+   - Примонтирует локальную базу данных SQLite (`glossary.db`) в контейнер
+   - Автоматически создаст базу данных при первом запуске, если её нет
+
+3. **Проверка работоспособности**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+4. **Остановка контейнера**:
+   Нажмите `Ctrl+C` в терминале или используйте:
+   ```bash
+   docker stop $(docker ps -q --filter ancestor=glossaryapi:latest)
+   ```
+
 <img width="1267" height="721" alt="image" src="https://github.com/user-attachments/assets/d83fb3f8-a6e5-47a4-851c-d58c05d3e271" />
 
+### Развертывание с Docker Compose
 
-## Docker Compose
+#### Требования
+- Docker Compose установлен (обычно входит в Docker Desktop)
+
+#### Шаги развертывания
+
+1. **Запуск сервиса в фоновом режиме**:
+   ```bash
+   make compose-up
+   ```
+   Или напрямую через Docker Compose:
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Проверка статуса контейнеров**:
+   ```bash
+   docker compose ps
+   ```
+
+3. **Просмотр логов**:
+   ```bash
+   docker compose logs -f api
+   ```
+
+4. **Проверка работоспособности**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+5. **Остановка сервиса**:
+   ```bash
+   make compose-down
+   ```
+   Или напрямую через Docker Compose:
+   ```bash
+   docker compose down
+   ```
+
+#### Преимущества Docker Compose
+- Автоматическая настройка сети между контейнерами
+- Управление переменными окружения через `compose.yaml`
+- Автоматический перезапуск контейнера при сбое (`restart: unless-stopped`)
+- Простое масштабирование (при необходимости)
+
+## Работа сервиса
+
+После успешного развертывания сервис готов к использованию. Все операции CRUD доступны через REST API:
+
+- **Создание термина**: POST запрос с JSON телом, содержащим `keyword`, `description` и опционально `source`
+- **Получение списка терминов**: GET запрос без параметров
+- **Получение конкретного термина**: GET запрос с `keyword` в пути
+- **Обновление термина**: PUT запрос с `keyword` в пути и JSON телом с новыми данными
+- **Удаление термина**: DELETE запрос с `keyword` в пути
+
+Все входные данные валидируются с помощью Pydantic схем, что гарантирует корректность формата и ограничений длины полей.
+
+### Семантический граф (MindMap)
+
+Сервис поддерживает создание семантического графа терминов с визуализацией связей между ними.
+
+#### API для работы с графом:
+
+- **GET `/graph/graph`** — получение данных графа для визуализации (возвращает узлы и рёбра)
+- **POST `/graph/relations/`** — создание связи между терминами
+- **GET `/graph/relations/`** — получение списка всех связей
+- **GET `/graph/relations/{term_keyword}`** — получение всех связей для конкретного термина
+- **DELETE `/graph/relations/{relation_id}`** — удаление связи
+
+#### Фронтенд для визуализации:
+
+После запуска сервиса откройте в браузере: **http://localhost:8000/**
+
+Фронтенд предоставляет интерактивную визуализацию семантического графа с возможностью:
+- Просмотра всех терминов и связей между ними
+- Клика по узлам для просмотра детальной информации о термине
+- Просмотра источников определений
+- Перетаскивания узлов для удобной навигации
+- Фильтрации по типам связей (related, synonym, antonym, part_of, etc.)
+
+#### Пример создания связи между терминами:
+
 ```bash
-# Start in detached mode
-make compose-up
-
-# Stop containers
-make compose-down
+curl -X POST http://localhost:8000/graph/relations/ \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source_keyword": "API",
+    "target_keyword": "REST",
+    "relation_type": "related",
+    "description": "REST является типом API"
+  }'
 ```
 
-## Notes
-- The SQLite database file is `glossary.db` (mounted when running in Docker/Docker Compose).
-- Static docs are generated from the FastAPI app routes; regenerate after any API changes using `make docs`.
+## Обоснование выбора формата контейнера
+
+### Выбор Docker
+
+Для данного проекта выбран формат контейнеризации **Docker** по следующим причинам:
+
+1. **Широкая поддержка и экосистема**: Docker является де-факто стандартом контейнеризации с огромной экосистемой инструментов и библиотек
+2. **Кроссплатформенность**: Работает на Linux, Windows и macOS
+3. **Простота развертывания**: Минимальная конфигурация для быстрого запуска
+4. **Интеграция с CI/CD**: Легкая интеграция в пайплайны разработки
+5. **Масштабируемость**: Простое горизонтальное масштабирование через Docker Compose или оркестраторы
+
+### Отечественные альтернативы контейнеризации
+
+#### 1. **Virtuozzo (OpenVZ)**
+
+**Преимущества:**
+- Российская разработка с поддержкой на русском языке
+- Эффективное использование ресурсов через контейнеры на уровне ОС
+- Хорошая производительность за счет отсутствия виртуализации
+
+**Недостатки:**
+- Меньшая экосистема по сравнению с Docker
+- Ограниченная поддержка Windows/macOS
+- Требует специализированных знаний для настройки
+
+**Применимость для проекта:** Не подходит из-за сложности настройки и ограниченной поддержки платформ.
+
+#### 2. **Яндекс.Облако Container Registry**
+
+**Преимущества:**
+- Интеграция с российскими облачными сервисами
+- Соответствие требованиям локализации данных
+- Поддержка Docker-образов
+
+**Недостатки:**
+- Привязка к конкретному провайдеру
+- Дополнительные затраты на облачную инфраструктуру
+
+**Применимость для проекта:** Подходит для продакшн-развертывания в российских дата-центрах, но требует облачной инфраструктуры.
+
+#### 3. **Альт Линукс с поддержкой Docker**
+
+**Преantages:**
+- Российская операционная система
+- Полная поддержка Docker
+- Соответствие требованиям импортозамещения
+
+**Недостатки:**
+- Ограниченная поддержка приложений
+- Меньшее сообщество разработчиков
+
+**Применимость для проекта:** Подходит для развертывания на российских ОС, но требует адаптации.
+
+#### 4. **Ред ОС с Docker**
+
+**Преимущества:**
+- Российская ОС на базе RHEL
+- Поддержка Docker из коробки
+- Соответствие требованиям безопасности
+
+**Недостатки:**
+- Ограниченная документация на русском языке
+- Меньшая экосистема по сравнению с Ubuntu/Debian
+
+**Применимость для проекта:** Хороший выбор для корпоративного развертывания в России.
+
+### Вывод
+
+Для данного проекта выбран **Docker** как наиболее универсальное и простое решение, которое:
+- Позволяет быстро развернуть сервис на любой платформе
+- Имеет обширную документацию и сообщество
+- Легко интегрируется в любые пайплайны
+- Может быть развернут на российских ОС (Альт Линукс, Ред ОС) без изменений
+- Совместим с российскими облачными сервисами (Яндекс.Облако, VK Cloud)
+
+При необходимости развертывания в полностью локализованной среде рекомендуется использовать Docker на базе российских ОС (Альт Линукс или Ред ОС) или использовать Яндекс.Облако Container Registry для хранения образов.
+
+## Примечания
+
+- Файл базы данных SQLite: `glossary.db` (автоматически создается при первом запуске, монтируется при работе в Docker/Docker Compose)
+- Статическая документация генерируется из маршрутов FastAPI; перегенерируйте после изменений API с помощью `make docs`
+- База данных сохраняется между перезапусками контейнеров благодаря volume mount
+- При локальном развертывании база данных создается в корне проекта
+- Фронтенд для визуализации графа доступен по адресу http://localhost:8000/ после запуска сервиса

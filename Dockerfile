@@ -11,6 +11,7 @@ COPY pyproject.toml .
 COPY README.md .
 COPY app ./app
 COPY scripts ./scripts
+COPY static ./static
 
 # Install dependencies using uv
 RUN uv venv && . .venv/bin/activate && uv pip install -e .
